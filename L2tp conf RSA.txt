@@ -1,0 +1,26 @@
+/certificate add name=My-CA common-name=xxx.xxx.com key-usage=key-cert-sign,crl-sign trusted=yes days-valid=3650
+/certificate sign My-CA
+/certificate add name=VPN-Server-Certificate common-name=xxx.xxx.com days-valid=3650 key-usage=digital-signature,key-encipherment,data-encipherment,ipsec-tunnel,ipsec-end-system,tls-server
+/certificate sign VPN-Server-Certificate ca=My-CA
+/certificate set trusted=yes VPN-Server-Certificate
+/certificate add name=VPN-Client-Certificate common-name=client.xxx.xxx.com days-valid=3650 key-usage=digital-signature,key-encipherment,data-encipherment,ipsec-user,tls-client
+/certificate sign VPN-Client-Certificate ca=My-CA
+/certificate set trusted=yes VPN-Client-Certificate
+/certificate export-certificate My-CA type=pem
+/certificate export-certificate VPN-Client-Certificate type=pkcs12 export-passphrase=xxxxxxxx
+
+
+/ip pool add name=vpn-pool ranges=192.168.44.10-192.168.44.100 
+/ppp profile set default-encryption local-address=192.168.44.1 remote-address=vpn-pool
+/ppp secret add name=xxx password=xxxxxx service=l2tp profile=default-encryption
+
+
+
+/ip ipsec proposal set [find default=yes] enc-algorithms=aes-128-cbc,aes-192-cbc,aes-256-cbc
+/ip ipsec  mode-config add name=vpn-mode-config address-pool=vpn-pool static-dns=8.8.8.8
+/ip ipsec peer add address=0.0.0.0/0 auth-method=rsa-signature certificate=VPN-Server-Certificate remote-certificate=VPN-Client-Certificate exchange-mode=main-l2tp passive=yes my-id=fqdn:danamon2.pos-eigerindo.com mode-config=vpn-mode-config generate-policy=port-strict proposal-check=obey hash-algorithm=sha1 enc-algorithm=aes-128,aes-192,aes-256 dh-group=modp1024 comment=L2TP-RSA
+/interface l2tp-server server set enabled=yes default-profile=default-encryption use-ipsec=no caller-id-type=ip-address authentication=mschap2
+
+
+/ip firewall nat add action=masquerade chain=srcnat src-address=192.168.44.0/24
+/ip firewall filter add action=accept chain=input comment="L2TP-Server" protocol=udp dst-port=500,1701,4500
